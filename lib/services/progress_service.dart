@@ -13,6 +13,9 @@ class ProgressService {
   int _totalMastered = 0;
   int _consecutivePerfectRounds = 0;
 
+  // Last-played theme tracking
+  String? _lastPlayedTheme;
+
   ProgressService._();
 
   static Future<ProgressService> getInstance() async {
@@ -44,6 +47,7 @@ class ProgressService {
     _totalMastered = _prefs.getInt('total_mastered') ?? 0;
     _consecutivePerfectRounds =
         _prefs.getInt('consecutive_perfect_rounds') ?? 0;
+    _lastPlayedTheme = _prefs.getString('last_played_theme');
   }
 
   Future<void> _saveTheme(String themeName) async {
@@ -64,6 +68,92 @@ class ProgressService {
 
   double getThemeCompletion(String themeName) {
     return _themeProgress[themeName]?.completionPercent ?? 0.0;
+  }
+
+  // ── Last-played theme tracking ──────────────────────────────────────────
+
+  String? getLastPlayedTheme() => _lastPlayedTheme;
+
+  Future<void> saveLastPlayedTheme(String themeName) async {
+    _lastPlayedTheme = themeName;
+    await _prefs.setString('last_played_theme', themeName);
+  }
+
+  // ── Overall stats for a CEFR level ─────────────────────────────────────
+
+  OverallStats getOverallStats(String cefrLevel) {
+    final themes = allThemes.where((t) => t.cefrLevel == cefrLevel).toList();
+    int totalWords = 0;
+    int masteredWords = 0;
+    int knownWords = 0;
+    int seenWords = 0;
+    double completionSum = 0.0;
+
+    for (final theme in themes) {
+      totalWords += theme.words.length;
+      final progress = _themeProgress[theme.name];
+      if (progress != null) {
+        masteredWords += progress.masteredCount;
+        knownWords += progress.knownCount;
+        seenWords += progress.words.values
+            .where((w) => w.timesSeen > 0)
+            .length;
+        completionSum += progress.completionPercent;
+      }
+    }
+
+    final overallCompletion =
+        themes.isEmpty ? 0.0 : (completionSum / themes.length).clamp(0.0, 1.0);
+
+    return OverallStats(
+      totalWords: totalWords,
+      masteredWords: masteredWords,
+      knownWords: knownWords,
+      seenWords: seenWords,
+      overallCompletion: overallCompletion,
+    );
+  }
+
+  // ── Best theme to resume ────────────────────────────────────────────────
+
+  VocabTheme? getResumeTheme(String cefrLevel) {
+    final themes = allThemes.where((t) => t.cefrLevel == cefrLevel).toList();
+    if (themes.isEmpty) return null;
+
+    // 1. If last played theme is set, at this level, and not 100% complete — return it.
+    if (_lastPlayedTheme != null) {
+      final lastTheme = themes.firstWhere(
+        (t) => t.name == _lastPlayedTheme,
+        orElse: () => themes.first,
+      );
+      if (lastTheme.cefrLevel == cefrLevel) {
+        final completion = getThemeCompletion(lastTheme.name);
+        if (completion < 1.0) return lastTheme;
+      }
+    }
+
+    // 2. Find in-progress theme with lowest non-zero completion.
+    VocabTheme? bestInProgress;
+    double bestCompletion = double.infinity;
+    for (final theme in themes) {
+      final completion = getThemeCompletion(theme.name);
+      if (completion > 0.0 && completion < 1.0) {
+        if (completion < bestCompletion) {
+          bestCompletion = completion;
+          bestInProgress = theme;
+        }
+      }
+    }
+    if (bestInProgress != null) return bestInProgress;
+
+    // 3. Return first theme at 0% (to start fresh).
+    for (final theme in themes) {
+      final completion = getThemeCompletion(theme.name);
+      if (completion == 0.0) return theme;
+    }
+
+    // 4. Fallback — all 100%, return first theme.
+    return themes.first;
   }
 
   /// Generate a round of cards using spaced repetition priority
@@ -195,6 +285,9 @@ class ProgressService {
     progress.currentRound++;
     await _saveTheme(themeName);
 
+    // Track last played theme
+    await saveLastPlayedTheme(themeName);
+
     // Generate badges
     final badges = <String>[];
     if (_totalMastered == 10) badges.add('10 parole padroneggiate!');
@@ -229,12 +322,14 @@ class ProgressService {
     _themeProgress.clear();
     _totalMastered = 0;
     _consecutivePerfectRounds = 0;
+    _lastPlayedTheme = null;
 
     final keys = _prefs.getKeys().toList();
     for (final key in keys) {
       if (key.startsWith('theme_progress_') ||
           key == 'total_mastered' ||
-          key == 'consecutive_perfect_rounds') {
+          key == 'consecutive_perfect_rounds' ||
+          key == 'last_played_theme') {
         await _prefs.remove(key);
       }
     }
@@ -249,4 +344,20 @@ class ProgressService {
     _themeProgress[themeName]!.setTotalWords(theme.words.length);
     await _prefs.remove(_themeKey(themeName));
   }
+}
+
+class OverallStats {
+  final int totalWords;
+  final int masteredWords;
+  final int knownWords;
+  final int seenWords;
+  final double overallCompletion;
+
+  const OverallStats({
+    required this.totalWords,
+    required this.masteredWords,
+    required this.knownWords,
+    required this.seenWords,
+    required this.overallCompletion,
+  });
 }
