@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -126,14 +128,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: cefrColors[_selectedCefr] ?? Colors.grey,
                         ),
                       ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        '${_filteredThemes.length} categorie - ${_filteredThemes.fold<int>(0, (sum, t) => sum + t.words.length)} parole',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.sp,
-                          color: AppTheme.textMuted,
-                        ),
-                      ),
+                      if (_progressService != null) ...[
+                        SizedBox(height: 12.h),
+                        _ProgressHero(
+                          progressService: _progressService!,
+                          cefrLevel: _selectedCefr,
+                          onReturn: _refreshProgress,
+                        )
+                            .animate()
+                            .fadeIn(delay: 350.ms, duration: 500.ms)
+                            .slideY(begin: 0.1),
+                      ],
                       SizedBox(height: 20.h),
                     ],
                   ),
@@ -274,6 +279,287 @@ class _ApkDownloadButton extends StatelessWidget {
     );
   }
 }
+
+// ─── Progress Hero ────────────────────────────────────────────────────────────
+
+class _ProgressHero extends StatelessWidget {
+  final ProgressService progressService;
+  final String cefrLevel;
+  final VoidCallback onReturn;
+
+  const _ProgressHero({
+    required this.progressService,
+    required this.cefrLevel,
+    required this.onReturn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = progressService.getOverallStats(cefrLevel);
+    final cefrColor = cefrColors[cefrLevel] ?? AppTheme.primary;
+    final resumeTheme = progressService.getResumeTheme(cefrLevel);
+    final hasLastPlayed = progressService.getLastPlayedTheme() != null &&
+        progressService.getResumeTheme(cefrLevel) != null;
+    final remaining = stats.totalWords - stats.masteredWords - stats.knownWords;
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 0),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+      decoration: AppTheme.glassCard(
+        opacity: 0.75,
+        shadowColor: cefrColor,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Left — animated circular progress ring
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: stats.overallCompletion),
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeOutCubic,
+            builder: (context, progress, child) {
+              return SizedBox(
+                width: 90.w,
+                height: 90.w,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: Size(90.w, 90.w),
+                      painter: _ProgressRingPainter(
+                        progress: progress,
+                        color: cefrColor,
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${(progress * 100).round()}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                            height: 1.1,
+                          ),
+                        ),
+                        Text(
+                          '%',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.sp,
+                            color: AppTheme.textSecondary,
+                            height: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          SizedBox(width: 16.w),
+          // Right — stats and button
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mini stats row
+                Row(
+                  children: [
+                    _StatDot(
+                      color: AppTheme.success,
+                      count: stats.masteredWords,
+                      label: 'padron.',
+                    ),
+                    SizedBox(width: 8.w),
+                    _StatDot(
+                      color: AppTheme.primary,
+                      count: stats.knownWords,
+                      label: 'note',
+                    ),
+                    SizedBox(width: 8.w),
+                    _StatDot(
+                      color: AppTheme.textMuted,
+                      count: remaining.clamp(0, stats.totalWords),
+                      label: 'rimanenti',
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10.h),
+                // Resume button
+                GestureDetector(
+                  onTap: resumeTheme == null
+                      ? null
+                      : () async {
+                          await Navigator.of(context).push(
+                            PageRouteBuilder(
+                              pageBuilder:
+                                  (context, animation, secondaryAnimation) =>
+                                      GameScreen(theme: resumeTheme),
+                              transitionsBuilder: (context, animation,
+                                  secondaryAnimation, child) {
+                                return FadeTransition(
+                                    opacity: animation, child: child);
+                              },
+                              transitionDuration:
+                                  const Duration(milliseconds: 300),
+                            ),
+                          );
+                          onReturn();
+                        },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 16.w, vertical: 12.h),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          cefrColor,
+                          cefrColor.withValues(alpha: 0.8),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Iconsax.play_circle,
+                          color: Colors.white,
+                          size: 20.sp,
+                        ),
+                        SizedBox(width: 8.w),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              hasLastPlayed ? 'Riprendi' : 'Inizia',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (resumeTheme != null)
+                              Text(
+                                resumeTheme.name,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10.sp,
+                                  color: Colors.white70,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDot extends StatelessWidget {
+  final Color color;
+  final int count;
+  final String label;
+
+  const _StatDot({
+    required this.color,
+    required this.count,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: 3.w),
+        Text(
+          '$count $label',
+          style: GoogleFonts.poppins(
+            fontSize: 11.sp,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressRingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  const _ProgressRingPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width / 2) - 6;
+    const strokeWidth = 8.0;
+
+    // Background track
+    final trackPaint = Paint()
+      ..color = color.withValues(alpha: 0.12)
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, trackPaint);
+
+    if (progress <= 0) return;
+
+    // Foreground arc with gradient
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final gradient = SweepGradient(
+      startAngle: -pi / 2,
+      endAngle: -pi / 2 + 2 * pi,
+      colors: [
+        color.withValues(alpha: 0.6),
+        color,
+      ],
+      stops: const [0.0, 1.0],
+    );
+
+    final foregroundPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      rect,
+      -pi / 2, // start at 12 o'clock
+      2 * pi * progress,
+      false,
+      foregroundPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ProgressRingPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
+}
+
+// ─── Theme Card ───────────────────────────────────────────────────────────────
 
 class _ThemeCard extends StatefulWidget {
   final VocabTheme theme;
