@@ -197,34 +197,80 @@ class _CefrSelector extends StatelessWidget {
 
   const _CefrSelector({required this.selected, required this.onSelected});
 
+  static const _levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8.w,
-      runSpacing: 8.h,
-      children: cefrLabels.keys.map((level) {
-        final isSelected = level == selected;
-        final color = cefrColors[level] ?? Colors.grey;
-        return FilterChip(
-          label: Text(
-            level,
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              fontSize: 14.sp,
-              color: isSelected ? Colors.white : color,
+    return Container(
+      padding: EdgeInsets.all(4.w),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = (constraints.maxWidth - 8.w) / _levels.length;
+          final selectedIndex = _levels.indexOf(selected);
+          final selectedColor = cefrColors[selected] ?? Colors.grey;
+
+          return SizedBox(
+            height: 40.h,
+            child: Stack(
+              children: [
+                // Animated sliding indicator
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  left: selectedIndex * itemWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: itemWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedColor.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selectedColor.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                // Level buttons
+                Row(
+                  children: _levels.map((level) {
+                    final isSelected = level == selected;
+                    final color = cefrColors[level] ?? Colors.grey;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => onSelected(level),
+                        behavior: HitTestBehavior.opaque,
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14.sp,
+                              fontWeight:
+                                  isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.white
+                                  : color.withValues(alpha: 0.6),
+                            ),
+                            child: Text(level),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
-          ),
-          selected: isSelected,
-          onSelected: (_) => onSelected(level),
-          backgroundColor: color.withValues(alpha: 0.1),
-          selectedColor: color,
-          checkmarkColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        );
-      }).toList(),
+          );
+        },
+      ),
     );
   }
 }
@@ -361,21 +407,22 @@ class _ProgressHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Mini stats row
-                Row(
+                // Mini stats column
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _StatDot(
                       color: AppTheme.success,
                       count: stats.masteredWords,
                       label: 'acquisite',
                     ),
-                    SizedBox(width: 8.w),
+                    SizedBox(height: 4.h),
                     _StatDot(
                       color: AppTheme.primary,
                       count: stats.knownWords,
                       label: 'in corso',
                     ),
-                    SizedBox(width: 8.w),
+                    SizedBox(height: 4.h),
                     _StatDot(
                       color: AppTheme.textMuted,
                       count: remaining.clamp(0, stats.totalWords),
