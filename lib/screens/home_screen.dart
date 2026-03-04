@@ -199,36 +199,32 @@ class _CefrSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: cefrLabels.keys.map((level) {
-          final isSelected = level == selected;
-          final color = cefrColors[level] ?? Colors.grey;
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4.w),
-            child: FilterChip(
-              label: Text(
-                level,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.sp,
-                  color: isSelected ? Colors.white : color,
-                ),
-              ),
-              selected: isSelected,
-              onSelected: (_) => onSelected(level),
-              backgroundColor: color.withValues(alpha: 0.1),
-              selectedColor: color,
-              checkmarkColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    return Wrap(
+      spacing: 8.w,
+      runSpacing: 8.h,
+      children: cefrLabels.keys.map((level) {
+        final isSelected = level == selected;
+        final color = cefrColors[level] ?? Colors.grey;
+        return FilterChip(
+          label: Text(
+            level,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 14.sp,
+              color: isSelected ? Colors.white : color,
             ),
-          );
-        }).toList(),
-      ),
+          ),
+          selected: isSelected,
+          onSelected: (_) => onSelected(level),
+          backgroundColor: color.withValues(alpha: 0.1),
+          selectedColor: color,
+          checkmarkColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        );
+      }).toList(),
     );
   }
 }
@@ -371,13 +367,13 @@ class _ProgressHero extends StatelessWidget {
                     _StatDot(
                       color: AppTheme.success,
                       count: stats.masteredWords,
-                      label: 'padron.',
+                      label: 'acquisite',
                     ),
                     SizedBox(width: 8.w),
                     _StatDot(
                       color: AppTheme.primary,
                       count: stats.knownWords,
-                      label: 'note',
+                      label: 'in corso',
                     ),
                     SizedBox(width: 8.w),
                     _StatDot(
@@ -435,7 +431,7 @@ class _ProgressHero extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              hasLastPlayed ? 'Riprendi' : 'Inizia',
+                              stats.overallCompletion > 0 ? 'Riprendi' : 'Inizia',
                               style: GoogleFonts.poppins(
                                 fontSize: 14.sp,
                                 fontWeight: FontWeight.w700,
